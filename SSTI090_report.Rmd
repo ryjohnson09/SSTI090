@@ -15,6 +15,14 @@ library(drake)
 
 **Total number of raw read pairs**: `r nrow(readd(ssti_metadata))`
 
+## Raw Reads per Sample {style="color: gray"}
+```{r}
+readd(raw_read_count) %>% 
+  separate(sample_id, sep = "-", into = c("Sample_number", "day_ssti", "Body_site")) %>% 
+  select(Sample_number, Body_site, num_reads)
+```
+
+
 ## Read Quality Plots {style="color: gray"}
 
 ```{r}

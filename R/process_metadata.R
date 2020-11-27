@@ -5,12 +5,6 @@ process_metadata <- function(raw_metadata) {
     dplyr::filter(Study != c("Convergence")) %>% 
     separate(col = Study, into = c("Study", "Sample_Group"), sep = ", ")
   
-  # Get list of raw read directories
-  raw_reads_dirs <- c("data/raw/SSTI/191127_M00623/samples/",
-                      "data/raw/SSTI/191203_M02218/samples/",
-                      "data/raw/SSTI/191203_M02282/samples/",
-                      "data/raw/SSTI/191216_M02218/samples/")
-  
   # Extract all fastq.gz files
   raw_reads <- list.files(raw_reads_dirs) %>% 
     str_subset(pattern = "fastq.gz$") %>% 
