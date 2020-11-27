@@ -1,0 +1,26 @@
+---
+title: "SSTI 090 Report"
+author: "Ryan Johnson"
+date: "November 26, 2020"
+output: html_document
+---
+
+```{r setup}
+library(drake)
+```
+
+# Raw Reads
+
+------------------------------------------------------------------------
+
+**Total number of raw read pairs**: `r nrow(readd(ssti_metadata))`
+
+## Read Quality Plots {style="color: gray"}
+
+```{r}
+readd(raw_read_qual_plot_F)
+```
+
+```{r}
+readd(raw_read_qual_plot_R)
+```
