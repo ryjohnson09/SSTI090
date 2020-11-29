@@ -22,6 +22,14 @@ process_metadata <- function(raw_metadata) {
                              replacement = "\\1")) %>% 
     mutate(Day = ifelse(str_detect(string = Day, 
                                    pattern = "SSTI|Mock|NA|Neg|EMPTY"), NA, Day)) %>% 
+    # Sample Type
+    mutate(Sample_Type = case_when(
+      str_detect(string = Read_Name, pattern = "^\\d") ~ "Patient_Sample",
+      str_detect(string = Read_Name, pattern = "^Mock") ~ "Mock",
+      str_detect(string = Read_Name, pattern = "_NA_|_NA2_") ~ "No_ID",
+      str_detect(string = Read_Name, pattern = "EMPTY") ~ "Empty"
+    )) %>% 
+    
     # Body Site
     mutate(Body_Site = case_when(
       str_detect(string = Read_Name, pattern = "-N_") ~ "Nares",

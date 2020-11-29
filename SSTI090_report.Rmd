@@ -7,6 +7,15 @@ output: html_document
 
 ```{r setup}
 library(drake)
+library(tidyverse)
+library(RColorBrewer)
+library(readxl)
+library(ShortRead)
+library(dada2)
+library(phyloseq)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+theme_set(theme_minimal())
 ```
 
 # Raw Reads
@@ -16,19 +25,129 @@ library(drake)
 **Total number of raw read pairs**: `r nrow(readd(ssti_metadata))`
 
 ## Raw Reads per Sample {style="color: gray"}
-```{r}
-readd(raw_read_count) %>% 
-  separate(sample_id, sep = "-", into = c("Sample_number", "day_ssti", "Body_site")) %>% 
-  select(Sample_number, Body_site, num_reads)
-```
 
+```{r, fig.width = 11, fig.height=6}
+readd(raw_read_count) %>% 
+  separate(sample_id, sep = "-", 
+           into = c("Sample_number", "day_ssti", "Body_site"), remove = FALSE) %>% 
+  mutate(Body_site1 = case_when(
+    Body_site == "N" ~ "Nares",
+    Body_site == "O" ~ "Oropharynx",
+    Body_site == "P" ~ "Perianal",
+    Body_site == "I" ~ "Inguinal",
+    Body_site == "A" ~ "Abscess"
+  )) %>% 
+  ggplot(aes(x = Sample_number, y = num_reads)) +
+  geom_point(size = 1) +
+  facet_wrap(~Body_site1, scales = "free_x") +
+  labs(x = "", 
+       y = "# of Raw Reads",
+       title = "Number of Raw Reads per Sample",
+       subtitle = "Multiple timepoints for each sample") +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 6)
+  )
+```
 
 ## Read Quality Plots {style="color: gray"}
 
-```{r}
-readd(raw_read_qual_plot_F)
+```{r, fig.width = 11, fig.height=6}
+readd(raw_read_qual_plot_F) +
+  xlim(0,300) +
+  theme(
+    strip.text.x = element_text(size = 5)
+  )
 ```
 
-```{r}
-readd(raw_read_qual_plot_R)
+```{r, fig.width = 11, fig.height=6}
+readd(raw_read_qual_plot_R) +
+  xlim(0,300) +
+  theme(
+    strip.text.x = element_text(size = 5)
+  )
 ```
+
+# Filtering and Trimming
+
+------------------------------------------------------------------------
+
+```{r}
+# Plot colors
+plot_color <- colorRampPalette(brewer.pal(8, "Set1"))(12)
+
+read_trim_results <- readd(trim_filt_out) %>% 
+  # Edit read names to sample names
+  as_tibble(rownames = "Read_Name") %>% 
+  mutate(Read_Name1 = str_replace(string = Read_Name, pattern = "^(\\d+-.+-.)_.*", 
+                replacement = "\\1")) %>% 
+  mutate(Read_Name1 = str_replace(string = Read_Name, pattern = "_.{2,3}_534R.*.fastq.gz",
+                replacement = "")) %>% 
+  separate(Read_Name1, sep = "-", 
+           into = c("Sample_number", "day_ssti", "Sample_Type"), remove = FALSE) %>% 
+  # Add in body site definitions
+  mutate(Sample_Type = case_when(
+    Sample_Type == "N" ~ "Nares",
+    Sample_Type == "O" ~ "Oropharynx",
+    Sample_Type == "P" ~ "Perianal",
+    Sample_Type == "I" ~ "Inguinal",
+    Sample_Type == "A" ~ "Abscess",
+    str_detect(string = Read_Name1, pattern = "^Mock") ~ "Mock",
+    str_detect(string = Read_Name1, pattern = "_NA_|_NA2_") ~ "No_ID",
+    str_detect(string = Read_Name1, pattern = "EMPTY") ~ "Empty"
+  )) %>% 
+  # Calculate read loss
+  mutate(removed_reads = reads.in - reads.out) %>% 
+  mutate(precent_reads_removed = (removed_reads / reads.in) * 100)
+
+# Read in plate numbers
+plate_number <- read_excel("data/raw/IDCRP090-SSTI.xlsx")
+
+read_trim_results %>% 
+  left_join(plate_number, by = c("Read_Name1" = "Sample Name")) %>% 
+  ggplot(aes(x = Read_Name1, y = precent_reads_removed)) + 
+  geom_point(aes(color = Plate), size = 0.8) + 
+  scale_color_manual(values = plot_color, na.value = "black") +
+  facet_wrap(~ Sample_Type, scales = "free_x") + 
+  ylim(0,100) +
+  labs(x = "", 
+       y = "Percent of Reads Removed",
+       title = "Percent of Reads Removed",
+       subtitle = "Colored by sequencing plate") +
+  theme(
+    axis.text.x = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+  
+```
+
+# Learn the Error rates
+
+------------------------------------------------------------------------
+```{r}
+plotErrors(readd(error_F))
+plotErrors(readd(error_R))
+```
+
+# Learn the Error rates
+
+------------------------------------------------------------------------
+
+```{r}
+sequence_table <- makeSequenceTable(readd(merged_seqs))
+
+as.data.frame(table(nchar(getSequences(sequence_table)))) %>% 
+  as_tibble() %>% 
+  filter(Freq > 100) %>% 
+  ggplot(aes(x = Var1, y = Freq)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Size",
+       y = "Frequency",
+       title = "Merged Sequence Size",
+       subtitle = "Frequency within all samples in study") +
+  theme(
+    axis.text.x = element_text(size = 6, angle = 90, vjust = 0.5, hjust = 0)
+  )
+
+
+```
+

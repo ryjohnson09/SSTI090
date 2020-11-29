@@ -1,7 +1,7 @@
 # SSTI-090 Make File
 
 # Source the R directory
-R_functions <- list.files("R/", full.names = TRUE)
+R_functions <- list.files("R", full.names = TRUE)
 sapply(R_functions, source)
 
 # Now, your functions and workflow plan should be in your environment.
