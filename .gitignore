@@ -47,3 +47,6 @@ renv/
 
 # Raw and Processed Data
 data/
+
+# Side Analyses
+side_analyses/

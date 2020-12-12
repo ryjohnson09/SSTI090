@@ -16,7 +16,7 @@ trim_and_filter <- function(sample_names, raw_reads_F, raw_reads_R, output){
                 filt_reads_F, 
                 raw_reads_R, 
                 filt_reads_R, 
-                truncLen = c(260, 240), # based on raw read quality plots
+                truncLen = c(265, 240), # based on raw read quality plots
                 maxN = 0, 
                 maxEE = c(2, 2), 
                 truncQ = 2, 
