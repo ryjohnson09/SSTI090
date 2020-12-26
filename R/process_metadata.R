@@ -53,6 +53,16 @@ process_metadata <- function(raw_metadata) {
     select(-Study) %>% 
     select(Read_Name, Study_ID, everything())
   
+  # Add Sample Names
+  full_metadata_names <- full_metadata %>% 
+    mutate(
+      sample_name = basename(Read_Name) %>%
+        str_replace(pattern = "^(\\d+-.+-.)_.*",
+                    replacement = "\\1") %>%
+        str_replace(pattern = "_.{2,3}_534R.*B$",
+                    replacement = "")) %>% 
+    relocate(sample_name)
+  
   # Return cleaned tibble
-  full_metadata
+  full_metadata_names
 }

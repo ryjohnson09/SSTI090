@@ -1,7 +1,7 @@
 ---
-title: "SSTI 090 Report"
+title: "SSTI 090 Report - Read Processing and Filtering"
 author: "Ryan Johnson"
-date: "November 26, 2020"
+date: "`r Sys.Date()`"
 output: html_document
 ---
 
@@ -13,6 +13,7 @@ library(readxl)
 library(ShortRead)
 library(dada2)
 library(phyloseq)
+library(kableExtra)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 theme_set(theme_minimal())
@@ -120,17 +121,14 @@ read_trim_results %>%
   
 ```
 
-# Learn the Error rates
+## Learn the Error rates {style="color: gray"}
 
-------------------------------------------------------------------------
 ```{r}
-plotErrors(readd(error_F))
-plotErrors(readd(error_R))
+plotErrors(readd(error_F), nominalQ = TRUE)
+plotErrors(readd(error_R), nominalQ = TRUE)
 ```
 
-# Learn the Error rates
-
-------------------------------------------------------------------------
+## Amplicon length and frequency {style="color: gray"}
 
 ```{r}
 sequence_table <- makeSequenceTable(readd(merged_seqs))
@@ -151,3 +149,81 @@ as.data.frame(table(nchar(getSequences(sequence_table)))) %>%
 
 ```
 
+## Track Reads through Pipeline {style="color: gray"}
+
+```{r}
+x_axis_order <- c("filter_remove", "denoisedF_remove", "denoisedR_remove", "merged_remove", "chimera_remove")
+
+results_graph <- readd(track_read_results) %>% 
+  mutate(filter_remove = filtered / input) %>% 
+  mutate(denoisedF_remove = denoisedF / input) %>% 
+  mutate(denoisedR_remove = denoisedR / input) %>% 
+  mutate(merged_remove = merged / input) %>% 
+  mutate(chimera_remove = nonchim / input) %>% 
+  select(Read_Name, input, contains("remove")) %>% 
+  pivot_longer(!c(Read_Name, input), names_to = "Step", values_to = "Percent_remaining") %>% 
+  ggplot(aes(x = factor(Step, level = x_axis_order), 
+             y = Percent_remaining)) +
+  scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
+  labs(y = "Percent Remaining",
+       x = "Filter step",
+       title = "Percent of reads remaining after each step") +
+  geom_boxplot() +
+  theme_minimal()
+
+results_graph
+```
+
+```{r}
+separate(
+  readd(track_read_results),
+  col = "Read_Name",
+  sep = "-",
+  into = c("Sample_number", "day_ssti", "Sample_Type"),
+  remove = FALSE
+) %>%
+  arrange(Sample_Type) %>% 
+  kable() %>%
+  kable_styling("striped", full_width = T) %>%
+  scroll_box(width = "600px", height = "300px")
+```
+
+## Taxonomic Filtering {style="color: gray"}
+
+For this step, we want to see if there are any phyla that are not well represented (eg. only a few ASVs in entire dataset associated with a rare Phyla).
+
+```{r}
+table(tax_table(readd(ps))[, "phylum"], exclude = NULL)
+```
+
+## Prevalence Filtering {style="color: gray"}
+
+```{r}
+# Compute prevalence of each feature, store as data.frame
+prevdf <- apply(X = otu_table(readd(ps_taxa)),
+               MARGIN = ifelse(taxa_are_rows(readd(ps_taxa)), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+# Add taxonomy and total read counts to this data.frame
+prevdf <- data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(readd(ps_taxa)),
+                    tax_table(readd(ps_taxa)))
+
+# Compute total and average prevalence of each feature
+plyr::ddply(prevdf, "phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+```
+
+```{r fig.height=7, fig.width=7}
+# Subset to the remaining phyla
+prevdf1 <- subset(prevdf, phylum %in% get_taxa_unique(readd(ps_taxa_prev), "phylum"))
+
+# Plot
+ggplot(prevdf1, 
+       aes(TotalAbundance, 
+           Prevalence / nsamples(readd(ps_taxa_prev)),
+           color = phylum)) +
+  # Include a guess for parameter
+  geom_point(size = 2, alpha = 0.7) +
+  geom_hline(yintercept = 0.02, alpha = 0.5, linetype = 2) +
+  scale_x_log10() +  xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
+  facet_wrap(~phylum) + theme(legend.position="none")
+```
