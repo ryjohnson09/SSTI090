@@ -17,7 +17,9 @@ library(phyloseq)
 knitr::opts_chunk$set(
 	echo = FALSE,
 	message = FALSE,
-	warning = FALSE
+	warning = FALSE,
+	fig.height = 5,
+	fig.width = 9
 )
 theme_set(theme_minimal())
 plot_color <- colorRampPalette(brewer.pal(8, "Set1"))(12)
@@ -26,8 +28,11 @@ plot_color <- colorRampPalette(brewer.pal(8, "Set1"))(12)
 # Relative Abundance
 
 ```{r}
-# Calculate Phylum Relative Abundance
+# Read in phylum relative abundance
 phylum_relabundance <- psmelt(readd(ps_phylum_relabun))
+
+# Read in genus relative abundance
+genus_relabundance <- psmelt(readd(ps_genus_relabun))
 
 # Functions ----------------------------------------------------
 # Stacked Bar plot
@@ -47,7 +52,7 @@ stacked_bar_plot_phylum <- function(body_site){
       strip.text = element_text(size = 12)
   )
 }
-
+# Phylum Box Plot
 boxplot_phylum <- function(body_site){
   phylum_relabundance %>% 
     filter(Sample_Group %in% c("Control", "SSTI")) %>% 
@@ -64,6 +69,73 @@ boxplot_phylum <- function(body_site){
       legend.text = element_text(size = 10),
       strip.text = element_text(size = 12)
   )
+}
+  
+# Get top N genera
+top_n_genera <- function(body_site, N){
+  genus_relabundance %>% 
+    filter(Body_Site == body_site) %>% 
+    group_by(genus) %>% 
+    summarise(mean_genus_abun = mean(Abundance), .groups = "drop") %>% 
+    arrange(desc(mean_genus_abun)) %>% 
+    head(N) %>% 
+    pull(genus)
+}
+
+# Genus Relabun
+stacked_bar_plot_genus <- function(body_site, N){
+  genus_relabundance %>% 
+    filter(Body_Site == body_site) %>% 
+    filter(genus %in% top_n_genera(body_site, N)) %>% 
+    ggplot(aes(x = Sample, y = Abundance, fill = genus)) +
+    geom_bar(stat = "identity") +
+    labs(x = "",
+         y = "Relative Abundance") +
+    scale_fill_manual(values = plot_color, na.value = "black") +
+    facet_wrap(~ Day, scales = "free") +
+    theme(
+      axis.text.x = element_blank(),
+      axis.text.y = element_text(size = 12),
+      legend.text = element_text(size = 10),
+      strip.text = element_text(size = 12)
+  )
+}
+
+# Alpha Diversty box plots
+alpha_boxplot <- function(metric = c("Observed", "Shannon", "Chao1",
+                                    "Simpson", "InvSimpson")){
+  metric_sym <- sym(metric)
+  alpha_diversity_stats %>% 
+    filter(Sample_Group %in% c("Control", "SSTI")) %>% 
+    ggplot(aes(x = factor(Day), y = !!metric_sym, fill = Body_Site)) +
+    geom_boxplot() +
+    labs(x = "Day",
+         y = metric) +
+    theme(
+      axis.text.x = element_text(size = 12, vjust = 0, hjust = 0.5),
+      axis.text.y = element_text(size = 12),
+      legend.text = element_text(size = 10),
+      strip.text = element_text(size = 12)
+      )
+}
+
+# Alpha Diversity box plots: SSTI vs Control
+alpha_boxplot_ssti_ctrl <- function(body_site, metric = c("Observed", "Shannon", "Chao1",
+                                    "Simpson", "InvSimpson")){
+  metric_sym <- sym(metric)
+  alpha_diversity_stats %>% 
+    filter(Sample_Group %in% c("Control", "SSTI")) %>% 
+    filter(Body_Site == body_site) %>% 
+    ggplot(aes(x = Day, y = !!metric_sym, fill = Sample_Group)) +
+    geom_boxplot() +
+    labs(x = "Day",
+         y = metric) +
+    theme(
+      axis.text.x = element_text(size = 12, vjust = 0, hjust = 0.5),
+      axis.text.y = element_text(size = 12),
+      legend.text = element_text(size = 10),
+      strip.text = element_text(size = 12)
+      )
 }
 ```
 
@@ -130,9 +202,176 @@ boxplot_phylum("Perianal")
 
 
 
-## Genus Relative Abundance by Day
+## Genus Relative Abundance by Day {.tabset}
 
-```{r}
+### Nares
 
+```{r fig.height=5, fig.width=9}
+stacked_bar_plot_genus("Nares", 10)
 ```
 
+### Oropharynx
+
+```{r fig.height=5, fig.width=9}
+stacked_bar_plot_genus("Oropharynx", 10)
+```
+
+### Inguinal
+
+```{r fig.height=5, fig.width=9}
+stacked_bar_plot_genus("Inguinal", 10)
+```
+
+### Perianal
+
+```{r fig.height=5, fig.width=9}
+stacked_bar_plot_genus("Perianal", 10)
+```
+
+### Abscess
+
+```{r fig.height=5, fig.width=9}
+stacked_bar_plot_genus("Abscess", 10)
+```
+
+
+# Alpha Diversity
+
+```{r}
+alpha_diversity_stats <- readd(ps_alpha) %>% 
+  mutate(sample_name = readd(sample_names)) %>% 
+  full_join(readd(ssti_metadata), by = "sample_name")
+```
+
+## Body site diversity levels over time {.tabset}
+
+### Observed ASVs
+
+```{r fig.height=5, fig.width=9}
+alpha_boxplot("Observed")
+```
+
+### InvSimpson
+
+```{r fig.height=5, fig.width=9}
+alpha_boxplot("InvSimpson")
+```
+
+### Shannon
+
+```{r fig.height=5, fig.width=9}
+alpha_boxplot("Shannon")
+```
+
+### Chao1
+
+```{r fig.height=5, fig.width=9}
+alpha_boxplot("Chao1")
+```
+
+
+## Alpha Diversity: SSTI vs Control {.tabset}
+
+### Nares {.tabset .tabset-pills}
+
+#### Observed ASVs
+
+```{r}
+alpha_boxplot_ssti_ctrl("Nares", "Observed")
+```
+
+#### InvSimpson
+
+```{r}
+alpha_boxplot_ssti_ctrl("Nares", "InvSimpson")
+```
+
+#### Shannon
+
+```{r}
+alpha_boxplot_ssti_ctrl("Nares", "Shannon")
+```
+
+#### Chao1
+
+```{r}
+alpha_boxplot_ssti_ctrl("Nares", "Chao1")
+```
+
+### Inguinal {.tabset .tabset-pills}
+
+#### Observed ASVs
+
+```{r}
+alpha_boxplot_ssti_ctrl("Inguinal", "Observed")
+```
+
+#### InvSimpson
+
+```{r}
+alpha_boxplot_ssti_ctrl("Inguinal", "InvSimpson")
+```
+
+#### Shannon
+
+```{r}
+alpha_boxplot_ssti_ctrl("Inguinal", "Shannon")
+```
+
+#### Chao1
+
+```{r}
+alpha_boxplot_ssti_ctrl("Inguinal", "Chao1")
+```
+
+### Oropharynx {.tabset .tabset-pills}
+
+#### Observed ASVs
+
+```{r}
+alpha_boxplot_ssti_ctrl("Oropharynx", "Observed")
+```
+
+#### InvSimpson
+
+```{r}
+alpha_boxplot_ssti_ctrl("Oropharynx", "InvSimpson")
+```
+
+#### Shannon
+
+```{r}
+alpha_boxplot_ssti_ctrl("Oropharynx", "Shannon")
+```
+
+#### Chao1
+
+```{r}
+alpha_boxplot_ssti_ctrl("Oropharynx", "Chao1")
+```
+
+### Perianal {.tabset .tabset-pills}
+
+#### Observed ASVs
+
+```{r}
+alpha_boxplot_ssti_ctrl("Perianal", "Observed")
+```
+
+#### InvSimpson
+
+```{r}
+alpha_boxplot_ssti_ctrl("Perianal", "InvSimpson")
+```
+
+#### Shannon
+
+```{r}
+alpha_boxplot_ssti_ctrl("Perianal", "Shannon")
+```
+
+#### Chao1
+
+```{r}
+alpha_boxplot_ssti_ctrl("Perianal", "Chao1")
+```

@@ -102,6 +102,10 @@ plan <- drake_plan(
     ps_genus = tax_glom(ps_filt, "genus", NArm = TRUE),
     ps_genus_relabun = transform_sample_counts(ps_genus, function(OTU) OTU/sum(OTU) * 100),
     
+    # Alpha Diveristy Metrics
+    ps_alpha = estimate_richness(ps_filt, measures = c("Observed", "Shannon", "Chao1",
+                                                       "Simpson", "InvSimpson")),
+    
     
     
     
