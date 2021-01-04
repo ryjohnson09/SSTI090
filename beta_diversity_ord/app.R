@@ -30,6 +30,15 @@ ui <- fluidPage(# Application title
                             "Perianal", "Abscess"),
                 selected = "Nares"
             ),
+            
+            # Which days to include
+            checkboxGroupInput(
+                inputId = "days",
+                label = "Select visit days:",
+                choices = c("0", "14", "28", "56", "90"),
+                selected = c("0", "14", "28", "56", "90")
+            ),
+            
             # Use read counts or ASV relative abundance?
             radioButtons(
                 inputId = "counts_or_relabun",
@@ -40,8 +49,38 @@ ui <- fluidPage(# Application title
             
             # Action button for above computation
             actionButton(inputId = "run_ord",
-                         label = "Run Ordination")
+                         label = "Run Ordination"),
+            
+            hr(),
+            
+            # Customize Plot
+            selectInput(inputId = "color_by",
+                        label  = h4("Color points by:"),
+                        choices = c("Body Site" = "Body_Site",
+                                    "Day" = "Day",
+                                    "None" = "None")),
+            
+            selectInput(inputId = "shapes_by",
+                        label  = h4("Apply Shapes to:"),
+                        choices = c("Body Site" = "Body_Site",
+                                    "Day" = "Day",
+                                    "None" = "None")),
+            
+            selectInput(inputId = "ellipse_by",
+                        label  = h4("Add Ellipses By:"),
+                        choices = c("Body Site" = "Body_Site",
+                                    "Day" = "Day",
+                                    "None" = "None"), 
+                        selected = "None"),
+            
+            sliderInput(inputId = "pointsize",
+                        label = h4("Point Size"),
+                        min = 0.5,
+                        max = 5,
+                        value = 2)
+            
         ), 
+        
     
         
         # Show ordination plot
@@ -58,11 +97,14 @@ server <- function(input, output) {
         # Select Body sites
         ps_body <- eval(rlang::expr(subset_samples(ps_filt, Body_Site %in% !!input$body_sites)))
         
+        # Select days
+        ps_days <- eval(rlang::expr(subset_samples(ps_body, Day %in% !!input$days)))
+        
         # Convert to relative abundance?
         if (input$counts_or_relabun == "Relative Abundance"){
-            transform_sample_counts(ps_body, function(x) x / sum(x) * 100)
+            transform_sample_counts(ps_days, function(x) x / sum(x) * 100)
         } else {
-            ps_body
+            ps_days
         }
     })
     
@@ -73,7 +115,44 @@ server <- function(input, output) {
     
     # Plot Ordination
     output$ord_plot <- renderPlot({
-        plot_ordination(ps_data(), ord_data(), type = "sample", color = "Body_Site")
+        
+        # Shapes and Color
+        if (input$color_by == "None" & input$shapes_by != "None"){
+            
+            ps_plot <- plot_ordination(ps_data(),
+                                       ord_data(),
+                                       type = "sample",
+                                       shape = input$shapes_by
+            )
+        } else if (input$color_by != "None" & input$shapes_by == "None"){
+            ps_plot <- plot_ordination(ps_data(),
+                                       ord_data(),
+                                       type = "sample",
+                                       color = input$color_by)
+        } else if (input$color_by == "None" & input$shapes_by == "None"){
+            ps_plot <- plot_ordination(ps_data(),
+                                       ord_data(),
+                                       type = "sample")
+        } else if (input$color_by != "None" & input$shapes_by != "None"){
+            ps_plot <- plot_ordination(ps_data(),
+                                       ord_data(),
+                                       type = "sample",
+                                       shape = input$shapes_by,
+                                       color = input$color_by)
+        } else {
+            stop("Plot aesthetics not working")
+        }
+        
+        # Ellipses
+        if (input$ellipse_by != "None"){
+            ps_plot_ellip <- ps_plot + stat_ellipse(aes_string(color = input$ellipse_by))
+        } else {
+            ps_plot_ellip <- ps_plot
+        }
+        
+        # Plot size
+        ps_plot_ellip +
+            geom_point(size = input$pointsize)
     })
 }
 
