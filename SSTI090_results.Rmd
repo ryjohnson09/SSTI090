@@ -137,6 +137,30 @@ alpha_boxplot_ssti_ctrl <- function(body_site, metric = c("Observed", "Shannon",
       strip.text = element_text(size = 12)
       )
 }
+
+# Change in Diversity (line graph)
+change_div_ssti_ctrl <- function(metric){
+  metric_sym <- sym(metric)
+  tibble(alpha_diversity_stats) %>% 
+    filter(Sample_Group %in% c("Control", "SSTI")) %>%
+    filter(!is.na(Day)) %>% 
+    select(Study_ID, Sample_Group, !!metric_sym, Day, Body_Site) %>% 
+    pivot_wider(names_from = Day, values_from = !!metric_sym) %>% 
+    drop_na() %>% 
+    mutate(Day_0 = 0,
+           Day_14 = `14` - `0`,
+           Day_28 = `28` - `14`,
+           Day_56 = `56` - `28`,
+           Day_90 = `90` - `56`) %>% 
+    select(-c(`0`, `14`, `28`, `56`, `90`)) %>% 
+    pivot_longer(!Study_ID:Body_Site, names_to = "Day", values_to = "Change") %>% 
+    group_by(Body_Site, Sample_Group, Day) %>%
+    summarise(mean_change = mean(Change), sd = sd(Change)) %>% 
+    ggplot(aes(x = Day, y = mean_change, group = Body_Site)) +
+    geom_line(aes(color = Body_Site)) +
+    geom_point(aes(color = Body_Site)) +
+    facet_wrap(~Sample_Group)
+}
 ```
 
 
@@ -374,4 +398,30 @@ alpha_boxplot_ssti_ctrl("Perianal", "Shannon")
 
 ```{r}
 alpha_boxplot_ssti_ctrl("Perianal", "Chao1")
+```
+
+## Mean Change in Diversity levels over time {.tabset}
+
+### Observed ASVs
+
+```{r}
+change_div_ssti_ctrl(metric = "Observed")
+```
+
+### InvSimpson
+
+```{r}
+change_div_ssti_ctrl(metric = "InvSimpson")
+```
+
+### Shannon
+
+```{r}
+change_div_ssti_ctrl(metric = "Shannon")
+```
+
+### Chao1
+
+```{r}
+change_div_ssti_ctrl(metric = "Chao1")
 ```
